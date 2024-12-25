@@ -71,6 +71,10 @@ class WooCommerce_Mobile_OTP_Login_Only {
             .woocommerce {
             width: 350px !important;
             padding: 50px 25px;
+            margin: 0 auto;
+            box-shadow: 0 0 10px 5px #ddd;
+            border-radius: 20px;
+            text-align: center;
             }
             #otp-login-container .lh1 {
             font-size: 26px;
@@ -113,7 +117,8 @@ class WooCommerce_Mobile_OTP_Login_Only {
                     action: 'send_otp',
                     mobile: mobile,
                     nonce: nonce
-                }, function (response) {
+                },function (response) {
+                    console.log(response);
                     if (response.success) {
                         $('#otp-message').text(response.data);
                         $('#send-otp-container').hide();
@@ -163,11 +168,6 @@ class WooCommerce_Mobile_OTP_Login_Only {
             wp_send_json_error( 'Mobile number is required.' );
         }
 
-        // Validate the mobile number format
-        if ( strlen( $mobile ) < 11 ) {
-            wp_send_json_error( 'Mobile number must be 11 digits.' );
-        }
-
         // Generate a 6-digit OTP
         $otp = rand( 100000, 999999 );
         $this->otp = $otp; // Store OTP in the object for verification
@@ -191,19 +191,37 @@ class WooCommerce_Mobile_OTP_Login_Only {
         $otp_api_url = "https://www.ismartsms.net/iBulkSMS/HttpWS/SMSDynamicAPI.aspx?"
             . "UserId=medex_ewbs"
             . "&Password=MED@1342!exo"
-            . "&MobileNo=" . $mobile
+            . "&MobileNo=+968".$mobile
             . "&Lang=0"
             . "&FLashSMS=y"
             . "&Message={$otp_message}";
 
         // Call the API to send OTP
         $response = wp_remote_get( $otp_api_url );
+        $response = json_decode( $response['body'], true );
+
         if ( is_wp_error( $response ) ) {
             wp_send_json_error( 'Failed to send OTP. Please try again.' );
         }
 
         // Confirm OTP sent successfully
-        wp_send_json_success( 'OTP sent successfully to ' . $mobile .' otp ' . $otp  );
+        if( $response == 1 ) {
+            wp_send_json_success( 'OTP sent successfully to ' . $mobile  );
+        }elseif( $response == 2 ) {
+            wp_send_json_error( 'Company Not Exits. Please check the company' );
+        }elseif( $response == 3 ) {
+            wp_send_json_error( 'User or Password is wrong' );
+        }elseif( $response == 4 ) {
+            wp_send_json_error( 'Credit is Low' );
+        }elseif( $response == 5 ) {
+            wp_send_json_error( 'Invalid Mobile Number. Please check the mobile number' );
+        }elseif( $response == 9 ) {
+            wp_send_json_error( 'One or more mobile numbers are of invalid length' );
+        }elseif( $response == 11 ) {
+            wp_send_json_error( 'Un Known Error' );
+        }else{
+            wp_send_json_error( 'Failed to send OTP. Please try again.' );
+        }
     }
 
     // Handle OTP verification and login
