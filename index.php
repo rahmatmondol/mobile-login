@@ -44,11 +44,15 @@ class WooCommerce_Mobile_OTP_Login_Only {
             </div>
             <div id="otp-message" ></div>
             <div id="otp-verification" style="display:none;">
+                <div class="timer">
+                    <span id="timer"></span>
+                </div>
                 <p>
                     <label for="otp_code">OTP Code</label>
                     <input type="text" name="otp_code" id="otp_code" placeholder="Enter the OTP code">
                 </p>
                 <button type="button" id="verify_otp">submit</button>
+                <button type="button" id="send_again" style="display:none;">Send again</button>
             </div>
         </div>
         <style>
@@ -69,7 +73,7 @@ class WooCommerce_Mobile_OTP_Login_Only {
             position: relative;
             }
             .woocommerce {
-            width: 350px !important;
+            max-width: 350px !important;
             padding: 50px 25px;
             margin: 0 auto;
             box-shadow: 0 0 10px 5px #ddd;
@@ -104,6 +108,25 @@ class WooCommerce_Mobile_OTP_Login_Only {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script type="text/javascript">
         jQuery(document).ready(function ($) {
+            
+            function countdown(start) {
+                var counter = setInterval(function () {
+                    if (start <= 0) {
+                        clearInterval(counter);
+                        $('#send_again').show();
+                    } else {
+                        start--;
+                        $('#timer').text(start);
+                    }
+                }, 1000);
+            }
+            
+            $('#send_again').on('click', function () {
+                $('#send-otp-container').show();
+                $('#otp-verification').hide();
+                $('#send_again').hide();
+            });
+
             $('#send_otp').on('click', function () {
                 const mobile = $('#mobile_number').val();
                 const nonce = '<?php echo wp_create_nonce( 'otp_nonce' ); ?>';
@@ -123,6 +146,7 @@ class WooCommerce_Mobile_OTP_Login_Only {
                         $('#otp-message').text(response.data);
                         $('#send-otp-container').hide();
                         $('#otp-verification').show();
+                        countdown(60);
                     } else {
                         $('#otp-message').text(response.data);
                     }
@@ -145,9 +169,10 @@ class WooCommerce_Mobile_OTP_Login_Only {
                     otp: otp,
                     nonce: nonce
                 }, function (response) {
+                    console.log(response);
                     if (response.success) {
                         $('#otp-message').text(response.data);
-                        window.location.reload(); // Reload to reflect login
+                        window.location.href = '<?php echo wc_get_checkout_url(); ?>';
                     } else {
                         $('#otp-message').text(response.data);
                     }
@@ -171,23 +196,14 @@ class WooCommerce_Mobile_OTP_Login_Only {
         // Generate a 6-digit OTP
         $otp = rand( 100000, 999999 );
         $this->otp = $otp; // Store OTP in the object for verification
-
-        // Check if the mobile number already exists
-        $user = get_user_by( 'login', $mobile );
-        if ( !$user ) {
-            // register the user by mobile number only 
-            $user_id = wp_create_user( $mobile, wp_generate_password());
-            if ( is_wp_error( $user_id ) ) {
-                wp_send_json_error( 'Failed to create user. Please try again.' );
-            }
-        }
-
     
         // Store OTP in a session or temporary database for verification
-        set_transient( 'otp_' . $mobile, $otp, 300 ); // Expiry time of 5 minutes
+        set_transient( 'otp_' . $mobile, $otp, 300 ); // Expiry time of 5 minute
 
+      
         // Send OTP via SMS API (replace with actual API integration)
-        $otp_message = urlencode( "Your OTP code is: {$otp}" );
+        $otp_message = urlencode( "Your OTP code is: {$otp} expires in 5 minute" );
+
         $otp_api_url = "https://www.ismartsms.net/iBulkSMS/HttpWS/SMSDynamicAPI.aspx?"
             . "UserId=medex_ewbs"
             . "&Password=MED@1342!exo"
@@ -203,6 +219,7 @@ class WooCommerce_Mobile_OTP_Login_Only {
         if ( is_wp_error( $response ) ) {
             wp_send_json_error( 'Failed to send OTP. Please try again.' );
         }
+
 
         // Confirm OTP sent successfully
         if( $response == 1 ) {
@@ -257,11 +274,9 @@ class WooCommerce_Mobile_OTP_Login_Only {
 
         // Log the user in
         wp_set_auth_cookie( $user->ID, true );
-
         // Remove OTP from transient storage after successful verification
         delete_transient( 'otp_' . $mobile );
-
-        wp_send_json_success( 'User logged in successfully.' );
+        wp_send_json_success('User logged in successfully.');
     }
 }
 
